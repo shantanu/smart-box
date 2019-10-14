@@ -1,9 +1,12 @@
+#include "Wire.h"
+
+
 int photo1Pin = A0;
 int photo2Pin = A1;
 int joystickXPin = A2;
 int joystickYPin = A3;
-int soundPin = A4;
-int tempPin = A5;
+int soundPin = A2;
+int tempPin = A3;
 
 
 int photo1data = 0;
