@@ -39,7 +39,7 @@ void loop() {
       sounddata = analogRead(soundPin);
       tempdata = analogRead(tempPin);
       
-
+      // Note tha the middle two are garbage data FOR NOW
       Serial.print(photo1data);
       Serial.print(",");
       Serial.print(photo2data);

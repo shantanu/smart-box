@@ -4,7 +4,7 @@ import time
 sampling_period = .5
 
 print("initializing board")
-ser = serial.Serial('COM5', baudrate=9600, timeout=1)
+ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
 # allow arduino board to initialize fully before 
 # collecting any data points
 time.sleep(3)
