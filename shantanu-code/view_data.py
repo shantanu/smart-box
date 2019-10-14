@@ -8,20 +8,25 @@ import numpy as np
 
 #style.use('fivethirtyeight')
 fig, ax = plt.subplots(6, 1, sharex='col')
+fig.tight_layout()
 
 print("initializing board")
-ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
+
+"""USE THIS FOR LAPTOP"""
+ser = serial.Serial('COM5', baudrate=9600, timeout=1)
+
+"""USE THIS FOR RASPBERRY PI"""
+#ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
+
+#============================================================
+
 # allow arduino board to initialize fully before 
 # collecting any data points
 time.sleep(3)
 print("ready to collect")
 
 
-total_data = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
-
-
-# visualize just Photoresistor 1 vs datapoints
-
+total_data = np.array([[], [], [], [], [], []])
 
 
 headers = ['Timestamp', 'Photo1', 'Photo2', 'JoystickX', 'JoystickY', 
@@ -39,17 +44,14 @@ def animate(i):
     t = time.time()
     data = get_values()
     np_data = np.array(list(map(int, data.split(',')))).reshape(6,1)
-    #print(np_data)
     total_data = np.hstack((total_data, np_data))
-    #print(total_data.shape)
     
-    #photo_values.append(int(data.split(',')[0]))
-    #print(photo_values)
         
     for j in range(6):
-        #print(total_data[j][1:], range(len(total_data[j])-1))
         ax[j].clear()
-        ax[j].plot(list(range(len(total_data[j])-1)), (total_data[j][1:]).flatten())
+        ax[j].set_title(headers[j+1])
+        
+        ax[j].plot(list(range(len(total_data[j]))), (total_data[j]).flatten())
         
     
 
