@@ -51,7 +51,7 @@ def animate(i):
         ax[j].clear()
         ax[j].set_title(headers[j+1])
         
-        ax[j].plot(list(range(len(total_data[j]))), (total_data[j]).flatten())
+        ax[j].plot(list(range(len(total_data[j][-50:]))), (total_data[j]).flatten()[-50:])
         
     
 

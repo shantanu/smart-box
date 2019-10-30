@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<title>Pick a Collection</title>
+</head>
+
+<body>
+
+<h1>Here are the collection names!</h1>
+
+{% for collection in collections %}
+    <p>
+        <a href="/graph?col={{ collection[0] }}">
+            {{ collection[1] }}
+        </a>
+    </p>
+{% endfor %}
+
+</body>
+</html>

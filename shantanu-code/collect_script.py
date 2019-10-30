@@ -1,16 +1,37 @@
 import serial
 import time
 
+import pymongo
+from pymongo import MongoClient
+
 sampling_period = .5
 
 print("initializing board")
-ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
+
+"""USE THIS FOR LAPTOP"""
+ser = serial.Serial('COM5', baudrate=9600, timeout=1)
+
+"""USE THIS FOR RASPBERRY PI"""
+#ser = serial.Serial('/dev/ttyACM0', baudrate=9600, timeout=1)
+
+
+#===================================================
+
 # allow arduino board to initialize fully before 
 # collecting any data points
 time.sleep(3)
+print("Initializing Database")
+
+cluster = MongoClient("mongodb+srv://shon615:laghate8@gettingstarted-heozl.mongodb.net/test?retryWrites=true&w=majority")
+db = cluster["test"]
+
+
+
 print("ready to collect")
 
 headers = ['Timestamp', 'Photo1', 'Photo2', 'JoystickX', 'JoystickY', 
+           'Sound', 'Temp']
+db_headers = ['_id', 'Photo1', 'Photo2', 'JoystickX', 'JoystickY', 
            'Sound', 'Temp']
 
 
@@ -24,16 +45,28 @@ try:
     # run script for 20 seconds
     endtime = time.time() + 20
     filename = str(time.time()) + "_Data.txt"
+    collection_name = filename[:-4]
+    collection = db[collection_name]
+    
     with open(filename, 'a') as datafile:
         # write file headers
         datafile.write(','.join(headers) + '\n')
         # sample every few seconds
         while time.time() < endtime:
+            # write to txt file
             t = time.time()
             data = get_values()
             output = "{}, {}".format(t, data)
             datafile.write(output + "\n")
-            print(output)
+            
+            
+            # write to database post
+            data_ints = list(map(int, data.split(",")))
+            post = dict(zip(db_headers, [t] + data_ints))
+            
+            print(post)
+            
+            collection.insert_one(post)
 
             while time.time() < t + sampling_period:
                 time.sleep(0.05)
