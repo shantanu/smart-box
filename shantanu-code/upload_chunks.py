@@ -46,7 +46,7 @@ def get_values():
 
 try:
     collection_name = str(time.time()) + "_Data"
-    for _ in range(3):
+    for _ in range(10):
         # run script for 20 seconds
         endtime = time.time() + 10
         

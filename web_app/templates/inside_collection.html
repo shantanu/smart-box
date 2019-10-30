@@ -6,13 +6,11 @@
 
 <body>
 
-<h1>Here are the collection names!</h1>
+<h1>Inside this collection!</h1>
 
-{% for post in cursor %}
-    <p>
-        {{post}}
-    </p>
-{% endfor %}
+{% if fig != None %}
+    <img src="data:image/png;base64,{{ fig }}">
+{% endif %}
 
 </body>
 </html>
