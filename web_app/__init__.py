@@ -18,11 +18,20 @@ from datetime import datetime
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+import json
+from textwrap import dedent as d
+
 
 
 cluster = MongoClient("mongodb+srv://shon615:laghate8@gettingstarted-heozl.mongodb.net/test?retryWrites=true&w=majority")
 db = cluster["test"]
 
+styles = {
+    'pre': {
+        'border': 'thin lightgrey solid',
+        'overflowX': 'scroll'
+    }
+}
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -96,16 +105,12 @@ dynamic_graphs_layout = [
         md=8),
         dbc.Col([
             dbc.Row([
-                dcc.Graph(
-                    id='another-graph',
-                    style={
-                        'width': '100%',
-                        'height': '50vh'
-                    }
-                )
+                html.H3("Click On A Data Point"),
+                html.Pre(id='click-data', style=styles['pre'])
             ]),
             dbc.Row([
-                html.H3("Placeholder for some input format")
+                html.H3("Hover Data"),
+                html.Pre(id='hover-data', style=styles['pre'])
             ])
         ],
         md=4)
@@ -168,7 +173,7 @@ def display_graphs(pathname):
     
     rec = rec.T
 
-    print(rec)
+    #print(rec)
 
     fig = make_subplots(rows=len(headers), cols=1, shared_xaxes=True,
             subplot_titles=headers)
@@ -180,11 +185,26 @@ def display_graphs(pathname):
         ), row=i+1, col=1)
     fig.update_layout(showlegend=False)    
     
-    print(collection_name_to_date(collection_name))
+    #print(collection_name_to_date(collection_name))
 
     return (collection_name_to_date(collection_name), fig)
 
+@app.callback(
+    Output('hover-data', 'children'),
+    [Input('subplots-graph', 'hoverData')])
+def display_hover_data(hoverData):
+    return json.dumps(hoverData, indent=2)
 
+
+@app.callback(
+    Output('click-data', 'children'),
+    [Input('subplots-graph', 'clickData')])
+def display_click_data(clickData):
+    return json.dumps(clickData, indent=2)
+
+
+
+# ========================= NECESSARY FUNCTIONS =========================
 
 if __name__ == '__main__':
     app.run_server(debug=True)
