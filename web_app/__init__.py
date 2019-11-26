@@ -107,11 +107,13 @@ dynamic_graphs_layout = [
             dbc.Row([
                 html.H3("Click On A Data Point"),
                 html.Pre(id='click-data', style=styles['pre'])
-            ]),
+            ],
+            style={'height': '40vh', 'display': 'block'}),
             dbc.Row([
                 html.H3("Hover Data"),
                 html.Pre(id='hover-data', style=styles['pre'])
-            ])
+            ],
+            style={'height': '40vh', 'display': 'block'})
         ],
         md=4)
         
@@ -171,19 +173,30 @@ def display_graphs(pathname):
         rec = np.vstack((rec, post['rec']))
         headers = post['headers']
     
+    ts = [datetime.utcfromtimestamp(t) for t in ts]
     rec = rec.T
+    
 
     #print(rec)
 
     fig = make_subplots(rows=len(headers), cols=1, shared_xaxes=True,
-            subplot_titles=headers)
+                subplot_titles=headers)
 
     for i in range(len(headers)):
         fig.append_trace(go.Scatter(
-            x=ts.tolist(),
+            x=ts,
             y=rec[i].tolist(),
         ), row=i+1, col=1)
-    fig.update_layout(showlegend=False)    
+    
+    fig.update_layout(showlegend=False, 
+        xaxis= dict(
+            showspikes = True,
+            spikemode  = 'toaxis+across',
+            spikesnap = 'cursor',
+            spikedash = 'solid'
+        ),
+        dragmode = "select"
+    )    
     
     #print(collection_name_to_date(collection_name))
 
