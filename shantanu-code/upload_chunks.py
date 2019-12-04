@@ -52,6 +52,15 @@ def get_values():
 # collect data for 100 seconds - 10 chunks of 10 seconds each.
 try:
     collection_name = str(int(np.rint(time.time(), casting="safe"))) + "_Data"
+    collection = db[collection_name]
+
+    live_post = {
+        "_id": -1,
+        "live": True,
+    }
+
+    collection.insert_one(live_post)
+
     for _ in range(100):
         # run script for 10 seconds
         endtime = time.time() + 10
@@ -85,7 +94,6 @@ try:
         post['ts_list'] = ts_list
         post['_id'] = ts_list[0]
         #print(post)
-        collection = db[collection_name]
         collection.insert_one(post)
         print("Post inserted into collection")
 except Exception:
@@ -94,6 +102,7 @@ except Exception:
 else:
     tb = "No error"
 finally:
+    collection.find_one_and_update({'_id': -1}, {'$set': {'live': False}})
     ser.close()
     print(tb)
 

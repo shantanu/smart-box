@@ -2,7 +2,7 @@ import dash
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc 
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
 
@@ -36,6 +36,9 @@ styles = {
     '40vh': {
         'height': '40vh', 
         'display': 'block'
+    },
+    'disappear': {
+        'display': 'none',
     }
 }
 
@@ -50,6 +53,11 @@ def collection_name_to_date(name):
 # represents the URL bar, doesn't render anything
 location = dcc.Location(id='url', refresh=False)
 
+hidden_vars = html.Div([
+    html.Div("None", id="prev-url", style=styles['disappear']),
+    html.Div("False", id="paused", style=styles['disappear']),
+    html.Div("False", id="live", style=styles['disappear']),
+])
 
 # sticky navbar at top
 navbar = dbc.NavbarSimple(
@@ -84,6 +92,7 @@ nav = dbc.Nav(
 dynamic_graphs_layout = [
     dbc.Row([
         html.H1("Please pick a collection from left.", id="collection-title"),
+        dbc.Button("Pause Live Database", id="live-button", style=styles['disappear']),
         dcc.Interval(
             id='interval-component',
             interval=15*1000, # in milliseconds
@@ -107,9 +116,12 @@ dynamic_graphs_layout = [
                 html.Pre(id='selected-data', style=styles['pre'], children="Please Select Data by dragging a box on the graph!"),
                 dcc.Input(id="activity", type="text", placeholder='Activity Label'),
                 dbc.Button("Submit Label", id="activity-submit", color="info", className="mr-1"),
-
             ],
             style=styles['40vh']),
+
+            dbc.Row([
+                html.P("", id="label-submit-content")
+            ])
         ],
         md=4)
         
@@ -140,19 +152,47 @@ body = dbc.Container(
 )
 
 
-app.layout = html.Div([location, navbar, body])
+app.layout = html.Div([location, hidden_vars, navbar, body])
 
 
 # =====================  CALLBACKS ================================
-# Update Graph every 15 seconds to account for live incoming data
+
+
 # Also Update graph when new collection is selected (pathname changes)
-@app.callback([dash.dependencies.Output('collection-title', 'children'),
-                dash.dependencies.Output('subplots-graph', 'figure')],
-              [dash.dependencies.Input('url', 'pathname'),
-              Input('interval-component', 'n_intervals')])
-def display_graphs(pathname, n):
-    if (pathname == None) or (n == None):
+@app.callback([Output('collection-title', 'children'),
+                Output('subplots-graph', 'figure'),
+                Output('prev-url', 'children')],
+              [Input('url', 'pathname'),
+              Input('interval-component', 'n_intervals')],
+              [State('prev-url', 'children'),
+              State('paused', 'children'),
+              State('live', 'children')])
+def update_graphs(pathname, n, prev_url, paused, live):
+    # on startup
+    if pathname == None:
         raise PreventUpdate
+    if n == None:
+        raise PreventUpdate
+    
+    # check if url has changed: then always refresh
+    if pathname != prev_url:
+        print("prev_url is", prev_url)
+        print("pathname is", pathname)
+        print("URL fired graph refresh")
+        return display_graphs(pathname) + (pathname,)
+    
+    # if here, then interval fired.
+    # only update if graph is not paused
+    print("Interval Fired graph refresh")
+    if paused or (not live):
+        print("Graph updating is paused or not live - nothing is updated")
+        raise PreventUpdate
+    
+    print("Graph is updated becuase live and not paused")
+    return display_graphs(pathname) + (pathname,)
+    
+# Actually do the graphing
+def display_graphs(pathname=None):
     # Update the title of the page
     if (pathname == None) or (pathname == "/"):
         collection_name = "Please Pick a Collection from the Left"
@@ -164,7 +204,7 @@ def display_graphs(pathname, n):
     collection = db[collection_name]
     #print(collection)
     
-    cursor = collection.find({}).sort('_id', pymongo.ASCENDING)
+    cursor = collection.find({ '_id': { '$gt': 0 } } ).sort('_id', pymongo.ASCENDING)
     ts = np.array([])
     rec = np.zeros(shape=(0,6))
     headers = []
@@ -202,7 +242,7 @@ def display_graphs(pathname, n):
 
     return (collection_name_to_date(collection_name), fig)
 
-# Check graph for updates every 15 seconds through the interval component
+# Check pills for updates every 15 seconds through the interval component
 @app.callback(Output('pills', 'children'),
               [Input('interval-component', 'n_intervals')])
 def load_collection_names(n):
@@ -222,6 +262,7 @@ def load_collection_names(n):
             ) 
             for x in list_of_names]
 
+# Display the selected data on the right when you select on graph
 @app.callback(
     Output('selected-data', 'children'),
     [Input('subplots-graph', 'selectedData')])
@@ -230,25 +271,70 @@ def display_selected_data(selectedData):
         raise PreventUpdate
     return json.dumps(selectedData, indent=2)
 
-
-@app.callback(
-    Output('selected-data', 'children'),
-    [Input('subplots-graph', 'selectedData')])
-def display_selected_data(selectedData):
-    if selectedData == None:
+# Update the Live Status and Button
+@app.callback([Output('live-button', 'children'),
+                Output('live-button', 'style'),
+                Output('live-button', 'color'),
+                Output('live', 'children')],
+              [Input('interval-component', 'n_intervals'), 
+              Input('url', 'pathname')],
+              )
+def check_if_live (n, url):
+    if url == None or n == None:
         raise PreventUpdate
-    return json.dumps(selectedData, indent=2)
+    collection_name = url.split("/")[-1]
+
+    # Create the subplots graph
+    collection = db[collection_name]
+    
+    cursor = collection.find_one({ '_id': { '$lt': 0 } } )
+    print("live cursor", cursor)
+    live = False
+    if cursor:
+        live = cursor['live']
 
 
-# Hover and Click Data Functions
+    if live:
+        return ("Pause", {'display': 'block'}, 'danger', "True")
+    else:
+        return ("", {'display': 'none'}, '', "False")
+
 """
+@app.callback([Output('paused', 'children'),
+                Output('live-button', 'children'),
+                Output('live-button', 'color')],
+                [Input('live-button', 'n_clicks')],
+                [State('paused', 'children')])
+
+def on_click_pause (n, paused):
+    if paused == "True":
+        return "False", "Pause", "danger"
+    else:
+        return "True", "Return to Live", "success"
+"""
+
+
+
+"""
+# Hover and Click Data Functions
+# draw vertical line on all subplots instead of just the first one
 @app.callback(
-    Output('hover-data', 'children'),
-    [Input('subplots-graph', 'hoverData')])
-def display_hover_data(hoverData):
-    return json.dumps(hoverData, indent=2)
+    Output('subplots-graph', 'figure'),
+    [Input('subplots-graph', 'hoverData')],
+    [State('subplots-graph', 'figure')])
+def display_hover_data(hoverData, fig):
+    if hoverData == None:
+        raise PreventUpdate
+    
+    # see this link to do this:
+    # https://community.plot.ly/t/vertical-line-on-hover-in-all-subplots/23685/3
+
+"""
 
 
+    
+
+"""
 @app.callback(
     Output('click-data', 'children'),
     [Input('subplots-graph', 'clickData')])
