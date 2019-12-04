@@ -1,2 +1,0 @@
-Timestamp,Photo1,Photo2,JoystickX,JoystickY,Sound,Temp
-1572409348.513561, 264,468,91,710,91,710

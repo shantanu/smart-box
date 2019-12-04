@@ -1,5 +1,13 @@
+############################################################
+# THIS FILE READS DATA FROM THE ARDUINO SERIAL MONITOR AND 
+# UPLOADS IT ONE AT A TIME TO THE DATABASE
+# THIS IS PROBABLY NOT THE FILE YOU'RE LOOKING FOR.
+# USE UPLOAD_CHUNKS.PY INSTEAD.
+###########################################################
+
 import serial
 import time
+import json
 
 import pymongo
 from pymongo import MongoClient
@@ -28,11 +36,11 @@ db = cluster["test"]
 
 
 print("ready to collect")
+with open("config.json", 'r') as fp:
+    config = json.load(fp)
 
-headers = ['Timestamp', 'Photo1', 'Photo2', 'JoystickX', 'JoystickY', 
-           'Sound', 'Temp']
-db_headers = ['_id', 'Photo1', 'Photo2', 'JoystickX', 'JoystickY', 
-           'Sound', 'Temp']
+headers = ['Timestamp'] + config['sensor_names']
+db_headers = ['_id'] + config['sensor_names']
 
 
 def get_values():
