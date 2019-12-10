@@ -32,6 +32,8 @@ styles = {
     'pre': {
         'border': 'thin lightgrey solid',
         'overflowX': 'scroll',
+        'overflowY': 'scroll',
+        'height': '10pc' 
     },
     '40vh': {
         'height': '40vh', 
@@ -225,7 +227,8 @@ def display_graphs(pathname=None):
     
     ts = [datetime.utcfromtimestamp(t) for t in ts]
     rec = rec.T
-    
+    if len(headers) == 0:
+        raise PreventUpdate
 
     #print(rec)
 
