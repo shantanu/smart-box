@@ -1,1 +1,21 @@
-{"sensor_names": ["Photo1", "Photo2", "JoystickX", "JoystickY", "Sound", "Temp"], "box_id": 0}
+{
+    "box_name": "Box0",
+    "channel_names": [  ["PIR","PIR"],
+                        ["Audio","MAX9814"],
+                        ["Color Temp (K)", "TCS34725"],
+                        ["Lumosity", "TCS34725"],
+                        ["R", "TCS34725"],
+                        ["G", "TCS34725"],
+                        ["B", "TCS34725"],
+                        ["C", "TCS34725"],
+                        ["Temperature", "BME280"],
+                        ["Pressure", "BME280"],
+                        ["Approx. Altitude", "BME280"],
+                        ["Humidity", "BME280"],
+                        ["Accel X", "BNO055"], 
+                        ["Accel Y", "BNO055"],
+                        ["Accel Z", "BNO055"],
+                        ["Magnet X", "BNO055"],
+                        ["Magnet Y", "BNO055"],
+                        ["Magnet Z", "BNO055"]  ]
+}
