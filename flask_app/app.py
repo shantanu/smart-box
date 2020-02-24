@@ -1,6 +1,7 @@
 from flask import Flask, request
 import os
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from datetime import datetime
 
 app = Flask(__name__)
@@ -20,6 +21,7 @@ def enter_data():
     #print(channels)
     data = req_data['datapoints']
     #print(data)
+
     for timestamp, values in data.items():
         ts = datetime.utcfromtimestamp(int(float(timestamp))).strftime('%Y-%m-%d %H:%M:%S')
         value_floats = list(map(float, values.split(",")))
@@ -66,7 +68,39 @@ def check_box():
     return "Box Validated"
 
 
+@app.route("/get_data", methods=['GET'])
+def get_data():
+    box = request.args.get('box_name')
+    start_time = datetime.strptime(request.args.get('start_time'), '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(request.args.get('end_time'), '%Y-%m-%d %H:%M:%S')
+    query = "SELECT * FROM Data d WHERE d.box_name = '{}' and d.time BETWEEN '{}' AND '{}';".format(box, start_time, end_time)
+    result = db.engine.execute(text(query))
+    print([row for row in result])
 
+    print(result)
+    return "Got Result"
+
+
+@app.route("/get_box_channels", methods=['GET'])
+def get_box_channels():
+    box = request.args.get('box_name')
+    query = "SELECT DISTINCT channel_name FROM data where box_name = '{}'".format(box)
+    print(query)
+    result = db.engine.execute(text(query))
+
+    print([channel[0] for channel in result])
+
+    return "Got result"
+
+@app.route("/get_box_names", methods=['GET'])
+def get_box_names():
+    query = "SELECT * from Box"
+    print(query)
+    result = db.engine.execute(text(query))
+
+    print([channel[0] for channel in result])
+
+    return "Got result"
 
 # Wrapper Functions
 
@@ -132,4 +166,4 @@ class Data(db.Model):
 
 #addData("box0", "temperature", datetime.now(), 75.29)
 
-displayTable(Data)
+#displayTable(Data)
