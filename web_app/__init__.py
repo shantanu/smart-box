@@ -162,7 +162,6 @@ body = dbc.Container(
 
 app.layout = html.Div([location, hidden_vars, navbar, body])
 
-
 # =====================  CALLBACKS ================================
 
 
