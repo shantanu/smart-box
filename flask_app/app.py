@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 import base64
+import time
 from datetime import datetime
 
 from plotly.subplots import make_subplots
@@ -47,8 +48,8 @@ db = SQLAlchemy(server)
 # ===================== HOMEPAGE REDIRECT =======================
 @server.route('/')
 def hello_world():
-    # TODO: simply reroute this to /smartdash
-    return redirect('smartdash')
+    # TODO: simply reroute this to /visualizer
+    return redirect('visualizer')
 
 
 # =============== DATA ENTRY AND RETRIEVAL REST API ====================
@@ -64,18 +65,53 @@ def enter_data():
     data = req_data['datapoints']
     #print(data)
 
+    pictures = {}
+    if 'pictures' in req_data:
+        pictures = req_data['pictures']
+
     for timestamp, values in data.items():
         ts = datetime.utcfromtimestamp(int(float(timestamp))).strftime('%Y-%m-%d %H:%M:%S')
         value_floats = list(map(float, values.split(",")))
         for i in range(len(channels)):
             addData(box, channels[i], ts, value_floats[i])
 
+    if pictures:
+        print("Adding Pictures")
+        for timestamp, pic64 in pictures.items():
+            ts = datetime.utcfromtimestamp(int(float(timestamp))).strftime('%Y-%m-%d %H:%M:%S')
+            addPicture(box, ts, pic64)
 
     db.session.commit()
     displayTable(Data)
     print("Data Entered")
 
     return "Data Entered"
+
+# ONLY FOR TESTING
+@server.route('/picture_entry', methods=['POST'])
+def enter_picture():
+    req_data = request.get_json()
+    print("Got Request")
+    box = req_data['box_name']
+    timestamp = req_data['time']
+    ts = datetime.utcfromtimestamp(int(float(timestamp))).strftime('%Y-%m-%d %H:%M:%S')
+    print(box)
+    print(type(ts))
+    pic64 = req_data['picture']
+
+
+    print("Pic len", len(pic64))
+    
+    
+    addPicture(box, ts, pic64)
+    
+    
+    db.session.commit()
+    displayTable(Picture)
+    print("Picture Entered")
+    return "Picture Entered"
+
+
 
 @server.route('/check_box', methods=['POST'])
 def check_box():
@@ -146,6 +182,11 @@ def addData(box, channel, time, value, label=None):
     data = Data(box_name=box, channel_name=channel, time=time, value=value, label=label)
     db.session.add(data)
 
+def addPicture(box, ts, picture64):
+    print(type(ts))
+    pic = Picture(box_name=box, time=ts, picture=base64.b64decode(picture64))
+    db.session.add(pic)
+
 def displayTable(table):
     print(table.query.all())
 
@@ -209,13 +250,21 @@ class Data(db.Model):
             self.channel_name, self.time, self.value, self.label)
 
 
+class Picture(db.Model):
+    box_name = db.Column(db.String(255), db.ForeignKey('box.box_name'),
+                        primary_key=True)
+    time = db.Column(db.DateTime, primary_key=True)
+    picture = db.Column(db.LargeBinary)
+
+    def __repr__(self):
+        return '<Picture: {}, {}, {}>'.format(self.box_name, 
+            self.time, len(self.picture))
 
 
 
-
-# ========================= FRONTEND DASH APP =============================
-smartdash = dash.Dash(name="smartdash", server=server, 
-                        url_base_pathname='/smartdash/',
+# ========================= DATA VISUALIZATION DASH APP =============================
+visualizer = dash.Dash(name="visualizer", server=server, 
+                        url_base_pathname='/visualizer/',
                         external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 
@@ -256,7 +305,9 @@ hidden_vars = html.Div([
 # sticky navbar at top
 navbar = dbc.NavbarSimple(
     children=[
-        dbc.NavItem(dbc.NavLink("Link", href="#")),
+        dbc.NavItem(dbc.NavLink("Data Visualizer", href="/visualizer/", external_link=True)),
+        dbc.NavItem(dbc.NavLink("Labeling", href="/labeling/", external_link=True)),
+        dbc.NavItem(dbc.NavLink("AL Configuration", href="/config/", external_link=True)),
         dbc.DropdownMenu(
             nav=True,
             in_navbar=True,
@@ -269,8 +320,8 @@ navbar = dbc.NavbarSimple(
             ]
         )
     ],
-    brand='CyPhy Lab Active Learning Web App',
-    brand_href='#',
+    brand='SmartDash',
+    brand_href='/visualizer/',
     sticky='top',
 )
 
@@ -291,7 +342,7 @@ dynamic_graphs_layout = [
                 id='subplots-graph',
                 style={
                     'width': '100%',
-                    'height': '80vh'
+                    'height': '120vh'
                 }
             )
         ],
@@ -362,7 +413,7 @@ graph_select_form = dbc.Form([
     dbc.Button(id="graph-form-submit", children="Graph It!")
 ])
 
-body = dbc.Container(
+visualizer_body = dbc.Container(
     [
         dbc.Row([
             # nav with pills
@@ -386,11 +437,11 @@ body = dbc.Container(
 )
 
 
-smartdash.layout = html.Div([navbar, body])
-#smartdash.layout = html.Div([graph_select_form])
+visualizer.layout = html.Div([navbar, visualizer_body])
+#visualizer.layout = html.Div([graph_select_form])
 
 
-@smartdash.callback([Output('channel_dropdown', 'options')],
+@visualizer.callback([Output('channel_dropdown', 'options')],
                     [Input('box_dropdown', 'value')])
 def update_box_channels(box):
     # print("update box channels")
@@ -412,7 +463,7 @@ def update_box_channels(box):
 
 
 
-@smartdash.callback([Output('subplots-graph', 'figure')],
+@visualizer.callback([Output('subplots-graph', 'figure')],
     [Input('graph-form-submit', 'n_clicks')],
     [State('box_dropdown', 'value'),
      State('start_time', 'value'),
@@ -458,4 +509,56 @@ def update_graphs(n, box, start_time, end_time, channels):
         dragmode = "select"
     ) 
     return [fig]
+
+# Display the selected data on the right when you select on graph
+@visualizer.callback(
+    Output('selected-data', 'children'),
+    [Input('subplots-graph', 'selectedData')])
+def display_selected_data(selectedData):
+    if not selectedData:
+        raise PreventUpdate
+    return json.dumps(selectedData, indent=2)
+
+# =========================== LABELING WEB COMPONENT=====================
+
+labeling = dash.Dash(name="labeling", server=server, 
+                        url_base_pathname='/labeling/',
+                        external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+card_content = [
+    dbc.CardHeader("Card header"),
+    dbc.CardBody(
+        [
+            html.H5("Card title", className="card-title"),
+            html.P(
+                "This is some card content that we'll reuse",
+                className="card-text",
+            ),
+        ]
+    ),
+]
+
+labeling_body = dbc.Container([
+    dbc.Row([
+        dbc.Col(dbc.Card(card_content, color="light", style={'margin-top': '25px'})),
+    ],
+    style={
+        'width':'75vw',
+    })
+])
+
+labeling.layout = html.Div([navbar, labeling_body])
+
+# ======================== HELPER FUNCTIONS ========================
+
+def get_cards():
+    queries = get_AL_queries()
+    cards = []
+    for query in queries:
+        make_card(query)
+    
+
+# return [(box, time), ...]
+def get_AL_queries():
+    return [('Box0', '2020-02-18 01:29:00')]
 

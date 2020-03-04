@@ -17,5 +17,6 @@
                         ["Accel Z", "BNO055"],
                         ["Magnet X", "BNO055"],
                         ["Magnet Y", "BNO055"],
-                        ["Magnet Z", "BNO055"]  ]
+                        ["Magnet Z", "BNO055"]  ],
+    "camera_port": 1
 }

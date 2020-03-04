@@ -12,6 +12,8 @@ import json
 import requests
 import sys
 from requests.exceptions import HTTPError
+import cv2
+import base64
 
 
 sampling_period = 1
@@ -30,10 +32,7 @@ ser = serial.Serial('COM5', baudrate=115200, timeout=1)
 # allow arduino board to initialize fully before 
 # collecting any data points
 time.sleep(3)
-#print("Initializing Database")
 
-#cluster = MongoClient("mongodb+srv://shon615:laghate8@gettingstarted-heozl.mongodb.net/test?retryWrites=true&w=majority")
-#db = cluster["test"]
 
 
 
@@ -44,6 +43,20 @@ with open("config.json", 'r') as fp:
 sensor_names = config['channel_names']
 channel_names = [x[0] for x in config['channel_names']]
 box_name = config['box_name']
+
+# MAKE CAMERA PORT SOMETHING NEGATIVE IF NOT IN USE
+camera_port = int(config['camera_port'])
+
+if camera_port >= 0:
+    USING_CAMERA = True
+else:
+    USING_CAMERA = False
+
+if USING_CAMERA:
+    camera = cv2.VideoCapture(camera_port,cv2.CAP_DSHOW)
+    # Check if the webcam is opened correctly
+    if not camera.isOpened():
+        raise IOError("Cannot open webcam")
 
 
 # change this when server is hosted.
@@ -66,6 +79,17 @@ def get_values():
     print("data: ", arduinoData)
     return arduinoData.strip()
 
+def get_picture_base64():
+    return_value = False
+    while not return_value:
+        return_value, image = camera.read()
+    
+    # length 1,228,800 base 64 string to be sent in post request
+    b64im = base64.b64encode(image)
+    image_encoded = b64im.decode('utf-8')
+
+    print("created base64 image len", len(image_encoded))
+    return image_encoded
 
 
 
@@ -93,15 +117,15 @@ else:
 
 
 
-    """""
-    NOW THE FUN STARTS! LET'S COLLECT DATA!!
-    """""
+"""""
+NOW THE FUN STARTS! LET'S COLLECT DATA!!
+"""""
 
 
-    # collect data for 100 seconds - 10 chunks of 10 seconds each.
+# collect data for 100 seconds - 10 chunks of 10 seconds each.
 
 
-for _ in range(30):
+for _ in range(2):
     # run script for 10 seconds
     endtime = time.time() + 10
     
@@ -110,6 +134,8 @@ for _ in range(30):
     post["channel_names"] = channel_names
 
     datapoints = {}
+
+    pictures = {}
 
     
     #rec = np.zeros(shape=(0, len(channel_names)), dtype=int)
@@ -127,11 +153,16 @@ for _ in range(30):
         #datapoints[t] = data_floats
         datapoints[t] = data
         
+        if USING_CAMERA:
+            pictures[t] = get_picture_base64()
 
         while time.time() < t + sampling_period:
             time.sleep(0.05)
 
     post["datapoints"] = datapoints
+    # if we took pictures
+    if pictures:
+        post['pictures'] = pictures
     
     
 
