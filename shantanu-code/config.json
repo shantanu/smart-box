@@ -18,5 +18,5 @@
                         ["Magnet X", "BNO055"],
                         ["Magnet Y", "BNO055"],
                         ["Magnet Z", "BNO055"]  ],
-    "camera_port": 1
+    "USING_CAMERA": 1
 }
