@@ -13,7 +13,7 @@ camera_port = 1
 
 start = time.time()
 ret = subprocess.run(["fswebcam", "/home/pi/smart-box/shantanu-code/pics/test.jpg",
-                      "-q", "-r", "640x480", "--no-banner", "--skip", "2", "--set", "brightness=50%"])
+                      "-q", "-r", "640x480", "--no-banner", "--skip", "5"])
 end = time.time()
 
 print(ret)

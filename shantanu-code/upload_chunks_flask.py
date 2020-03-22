@@ -15,12 +15,13 @@ from requests.exceptions import HTTPError
 import base64
 import threading
 import subprocess
+from picamera import PiCamera
 from PIL import Image
 
 sampling_period = 1
 
 ARDUINO_PORT = '/dev/ttyACM0' # use 'COM5' with windows
-SERVER_URL = 'http://39e5b6eb.ngrok.io'
+SERVER_URL = 'http://d68aca92.ngrok.io'
 
 
 #==================== SETUP BOARD, CONFIG, CAMERA =================
@@ -32,6 +33,7 @@ def setup(url):
     global USING_CAMERA
     global headers
     global ser
+    global camera
     
     print("initializing board")
 
@@ -49,7 +51,7 @@ def setup(url):
     time.sleep(3)
 
 
-
+    
 
     print("configuring settings from json file")
     with open("config.json", 'r') as fp:
@@ -64,7 +66,11 @@ def setup(url):
     USING_CAMERA = bool(config['USING_CAMERA'])
 
     if USING_CAMERA:
-        print("Using Camera - make sure its plugged in")
+        camera = PiCamera()
+        camera.resolution = (640, 480)
+        camera.framerate = 24
+        print("Camera Setup")
+
 
     
     headers = {'content-type': 'application/json'}
@@ -135,15 +141,24 @@ def get_picture_base64(pic_as_array):
 
 # returns array with 10 base64 pictures
 def take_10_pictures(imagesb64):
-    
+    """
     for i in range(11):
         ret = subprocess.run(["fswebcam", "/home/pi/smart-box/shantanu-code/pics/pic{}.jpg".format(i),
-                      "-q", "-r", "640x480", "--no-banner", "--skip", "2", "--set", "brightness=50%"])
+                      "-q", "-r", "640x480", "--no-banner", "--skip", "5"])
     
     for i in range(11):
         image = np.asarray(Image.open("/home/pi/smart-box/shantanu-code/pics/pic{}.jpg".format(i)))
         imagesb64.append(get_picture_base64(image))
-        
+    """
+    # note that resolution here is reversed
+    output = np.empty((480, 640, 3), dtype=np.uint8)
+    imagesb64 = []
+    starttime_pics = time.time()
+    for _ in range(5):
+        camera.capture(output, 'rgb')
+        imagesb64.append(get_picture_base64(output))
+        time.sleep(2 - ((time.time() - starttime_pics) % 2.0))
+    
     return imagesb64
 
 #==================SEND DATA TO SERVER=========================
@@ -157,8 +172,10 @@ def send_data(datapoints, picture_thread, picturesb64):
         picture_thread.join()
         pictures = {}
         for i, ts in enumerate(datapoints.keys()):
-            print(i, ts)
-            pictures[ts] = picturesb64[i]
+            if i % 2 == 0:
+                print(i, ts)
+
+                pictures[ts] = picturesb64[i]
         
         post['pictures'] = pictures
         
@@ -187,12 +204,16 @@ NOW THE FUN STARTS! LET'S COLLECT DATA!!
 # collect data for 100 seconds - 10 chunks of 10 seconds each.
 
 
-for _ in range(10):
+for _ in range(600):
     # run script for 10 seconds
-    endtime = time.time() + 10
+    starttime_data = time.time()
+    endtime_data = starttime_data + 10
     
+    pictures_thread = None
     if USING_CAMERA:
         imagesb64 = []
+        if pictures_thread:
+            pictures_thread.join()
         pictures_thread = threading.Thread(target=take_10_pictures, args=(imagesb64,))
         pictures_thread.start()
 
@@ -201,7 +222,7 @@ for _ in range(10):
     #rec = np.zeros(shape=(0, len(channel_names)), dtype=int)
     
     # sample every few seconds
-    while time.time() < endtime:
+    while time.time() < endtime_data:
         # write to txt file
         t = np.rint(time.time(), casting="safe")
         # data is a comma separated string that has 6 ints in it
@@ -213,9 +234,9 @@ for _ in range(10):
         # datapoints[t] = data_floats
         datapoints[t] = data
         
+        time.sleep(sampling_period - ((time.time() - starttime_data) % sampling_period))
 
-        while time.time() < t + sampling_period:
-            time.sleep(0.05)
+        
             
     if USING_CAMERA:
         send_thread = threading.Thread(target=send_data, args=(datapoints, pictures_thread, imagesb64))
