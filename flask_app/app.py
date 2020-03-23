@@ -10,6 +10,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_core_components as dcc 
+import dash_gif_component as Gif
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
@@ -26,6 +27,9 @@ from datetime import datetime
 
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+
+from PIL import Image
+import io
 
 
 server = Flask("SmartBox Companion App")
@@ -82,7 +86,7 @@ def enter_data():
             addPicture(box, ts, pic64)
 
     db.session.commit()
-    displayTable(Data)
+    #displayTable(Data)
     print("Data Entered")
 
     return "Data Entered"
@@ -107,7 +111,7 @@ def enter_picture():
     
     
     db.session.commit()
-    displayTable(Picture)
+    #displayTable(Picture)
     print("Picture Entered")
     return "Picture Entered"
 
@@ -155,7 +159,23 @@ def get_data_request():
     result = get_data(box, start_time, end_time)
     result = [(row[0], row[1], row[2].strftime('%Y-%m-%d %H:%M:%S'), row[3], row[4])
                 for row in result]
+    
 
+    return json.dumps(result)
+
+@server.route("/get_pictures", methods=['GET'])
+def get_pictures_request():
+    print("Get pictures request")
+    box = request.args.get('box_name')
+    start_time = datetime.strptime(request.args.get('start_time'), '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(request.args.get('end_time'), '%Y-%m-%d %H:%M:%S')
+    
+    result = get_pictures(box, start_time, end_time)
+    print(result)
+
+    result = [(row[0],row[1].strftime('%Y-%m-%d %H:%M:%S'), row[2])
+                for row in result]
+    
     return json.dumps(result)
 
 @server.route("/get_box_channels", methods=['GET'])
@@ -199,6 +219,20 @@ def get_data(box, start_time, end_time):
     query = "SELECT * FROM Data d WHERE d.box_name = '{}' and d.time BETWEEN '{}' AND '{}';".format(box, start_time, end_time)
     result = db.engine.execute(text(query))
     return [row for row in result]
+
+# start_time and end_time are in python datetime types
+# returns a list of tuples (box_name, datetime (python format), base64 string picture)
+# note: you must parse the datetime object before printing!
+def get_pictures(box, start_time, end_time):
+    print("getting pictures", box, start_time, end_time)
+    query = "SELECT * FROM Picture p WHERE p.box_name = '{}' and p.time BETWEEN '{}' AND '{}';".format(box, start_time, end_time)
+    result = db.engine.execute(text(query))
+    print(result)
+
+    result = [(row[0],row[1], base64.b64encode(row[2]).decode('utf-8'))
+                for row in result]
+
+    return result
 
 
 # returns a list of channel names for a given box
@@ -440,7 +474,7 @@ visualizer_body = dbc.Container(
 visualizer.layout = html.Div([navbar, visualizer_body])
 #visualizer.layout = html.Div([graph_select_form])
 
-
+# ========================== VISUALIZER CALLBACKS ======================
 @visualizer.callback([Output('channel_dropdown', 'options')],
                     [Input('box_dropdown', 'value')])
 def update_box_channels(box):
@@ -461,23 +495,9 @@ def update_box_channels(box):
     return [[{"label": channel, "value": channel} 
                         for channel in channels]]
 
-
-
-@visualizer.callback([Output('subplots-graph', 'figure')],
-    [Input('graph-form-submit', 'n_clicks')],
-    [State('box_dropdown', 'value'),
-     State('start_time', 'value'),
-     State('end_time', 'value'),
-     State('channel_dropdown', 'value')])
-
-def update_graphs(n, box, start_time, end_time, channels):
-    if n == None:
-        raise PreventUpdate
-    # list of tuples 
-    # (box, channel, timestamp, value, label)
-    start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-    end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-    
+# box, start_time, end_time as strings
+# channels is either a list of channels or has ['All Channels']
+def graph_data(box, start_time, end_time, channels):
     data = get_data(box, start_time, end_time)
     df = pd.DataFrame(data, columns=['box_name', 
         'channel_name', 'timestamp', 'value', 'label'])
@@ -508,6 +528,25 @@ def update_graphs(n, box, start_time, end_time, channels):
         ),
         dragmode = "select"
     ) 
+
+    return fig
+
+@visualizer.callback([Output('subplots-graph', 'figure')],
+    [Input('graph-form-submit', 'n_clicks')],
+    [State('box_dropdown', 'value'),
+     State('start_time', 'value'),
+     State('end_time', 'value'),
+     State('channel_dropdown', 'value')])
+
+def update_graphs(n, box, start_time, end_time, channels):
+    if n == None:
+        raise PreventUpdate
+    # list of tuples 
+    # (box, channel, timestamp, value, label)
+    start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+    
+    fig = graph_data(box, start_time, end_time, channels)
     return [fig]
 
 # Display the selected data on the right when you select on graph
@@ -519,46 +558,127 @@ def display_selected_data(selectedData):
         raise PreventUpdate
     return json.dumps(selectedData, indent=2)
 
+
+
+# =========================== LABELING HELPERS =========================
+def get_labels():
+    return ["No People", "1 Person", "2 People", "3+ People"]
+
 # =========================== LABELING WEB COMPONENT=====================
 
-labeling = dash.Dash(name="labeling", server=server, 
+labeler = dash.Dash(name="labeling", server=server, 
                         url_base_pathname='/labeling/',
                         external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-card_content = [
-    dbc.CardHeader("Card header"),
-    dbc.CardBody(
-        [
-            html.H5("Card title", className="card-title"),
-            html.P(
-                "This is some card content that we'll reuse",
-                className="card-text",
-            ),
-        ]
-    ),
-]
 
-labeling_body = dbc.Container([
+
+labeler_body = dbc.Container([
+    dbc.Row(children=[], 
+        id="label-card-container",
+        style={
+            'width':'75vw',
+    }),
+    dbc.FormGroup([
+        dbc.Label("Your Label", html_for="label_dropdown"),
+        dcc.Dropdown(
+            id="label_dropdown",
+            options = [
+                {"label": label, "value": label} 
+                    for label in get_labels()
+            ])
+    ]),
     dbc.Row([
-        dbc.Col(dbc.Card(card_content, color="light", style={'margin-top': '25px'})),
-    ],
-    style={
-        'width':'75vw',
-    })
+        dbc.Button("Submit", color="success", className="mr-1", id="submit-label-button"),
+    ])
 ])
 
-labeling.layout = html.Div([navbar, labeling_body])
+labeler.layout = html.Div([navbar, labeler_body])
 
 # ======================== HELPER FUNCTIONS ========================
 
-def get_cards():
-    queries = get_AL_queries()
-    cards = []
-    for query in queries:
-        make_card(query)
+def create_gif(box, start_time, end_time):
+    pics = get_pictures(box, start_time, end_time)
+    frames = []
+
+    for i in range(len(pics)):
+        data = pics[i][2]
+        data = base64.b64decode(data)
+        frames.append(Image.fromarray(np.frombuffer(data, dtype=np.uint8).reshape((480, 640, 3))))
+
+    black_frame = Image.fromarray(np.zeros((480, 640, 3), dtype=np.uint8))
+    outputGIF = io.BytesIO()
+    full_gif = [black_frame] * 5 + frames
+    gif_name = "./assets/gifs/{}.gif".format(time.time())
+    frames[0].save(gif_name[:-3] + ".png", format="PNG")
+    with open(gif_name, "w+b") as g:
+        black_frame.save(g, format='GIF', append_images=full_gif, save_all=True, duration=100, loop=0)
+
+    return gif_name
+
+
+def get_next_label_card():
+    query = get_next_AL_query()
+    
+    # no more!
+    if not query:
+        return None
+    
+    box, start_time, end_time = query
+
+    # Time segment as title, (Data Graph), Gif all displayed in a card.
+    heading = start_time + " - " + end_time
+    fig = graph_data(box, start_time, end_time, ["All Channels"])
+    gif_name = create_gif(box, start_time, end_time)
+
+    card_content = [
+        dbc.CardBody(
+            [
+                html.H5("Please Provide a label for the following segment", className="card-title"),
+                html.H6(heading),
+                html.Div([
+                    Gif.GifPlayer(
+                        gif=gif_name,
+                        still=gif_name[:-3]+".png"
+                    )
+                ]),
+                dcc.Graph(
+                    figure=fig
+                )
+            ]
+        ),
+        
+    ]
+
+    return card_content
+
+@labeler.callback([Output("label-card-container", "children")],
+    [Input("submit-label-button", 'n_clicks')],
+    [State("label_dropdown", "value")])
+def populate_label_card(n, label):
+    # button  becuase somebody clicked the refresh button
+    if n and label:
+        segment_label = label
+        print(segment_label)
+
+    card = get_next_label_card()
+    if not card:
+        return [html.H3("There are no more segments to label at this time. Thank you.")]
+    return [card]
+
+
+
     
 
-# return [(box, time), ...]
-def get_AL_queries():
-    return [('Box0', '2020-02-18 01:29:00')]
+# return a segment:
+# (box, start_time, end_time)
+visited = False
+def get_next_AL_query():
+    global visited
+    # TODO: clear out the gif folder.
 
+    if not visited:
+        visited = True
+        return ('Box0', '2020-03-22 21:11:00', '2020-03-22 21:15:00')
+        
+    else:
+        return None
