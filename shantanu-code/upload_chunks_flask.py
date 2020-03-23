@@ -21,7 +21,7 @@ from PIL import Image
 sampling_period = 1
 
 ARDUINO_PORT = '/dev/ttyACM0' # use 'COM5' with windows
-SERVER_URL = 'http://d68aca92.ngrok.io'
+SERVER_URL = 'http://d23a2e5f.ngrok.io'
 
 
 #==================== SETUP BOARD, CONFIG, CAMERA =================
@@ -42,6 +42,8 @@ def setup(url):
 
     """USE THIS FOR RASPBERRY PI"""
     ser = serial.Serial(ARDUINO_PORT, baudrate=115200, timeout=1)
+    ser.close()
+    ser.open()
 
 
     #===================================================
@@ -136,11 +138,12 @@ def get_picture_base64(pic_as_array):
     b64im = base64.b64encode(pic_as_array)
     image_encoded = b64im.decode('utf-8')
 
-    print("created base64 image len", len(image_encoded))
+    print("created base64 image len", len(image_encoded), )
     return image_encoded
 
 # returns array with 10 base64 pictures
 def take_10_pictures(imagesb64):
+    global camera
     """
     for i in range(11):
         ret = subprocess.run(["fswebcam", "/home/pi/smart-box/shantanu-code/pics/pic{}.jpg".format(i),
@@ -152,13 +155,12 @@ def take_10_pictures(imagesb64):
     """
     # note that resolution here is reversed
     output = np.empty((480, 640, 3), dtype=np.uint8)
-    imagesb64 = []
     starttime_pics = time.time()
     for _ in range(5):
         camera.capture(output, 'rgb')
         imagesb64.append(get_picture_base64(output))
         time.sleep(2 - ((time.time() - starttime_pics) % 2.0))
-    
+    print("took 10 pics", len(imagesb64))
     return imagesb64
 
 #==================SEND DATA TO SERVER=========================
@@ -169,18 +171,21 @@ def send_data(datapoints, picture_thread, picturesb64):
     post['datapoints'] = datapoints
     
     if USING_CAMERA:
+        print("sending", len(picturesb64))
         picture_thread.join()
         pictures = {}
         for i, ts in enumerate(datapoints.keys()):
-            if i % 2 == 0:
-                print(i, ts)
+            print(i, ts)
 
-                pictures[ts] = picturesb64[i]
+            if i % 2 == 0:
+
+                pictures[ts] = picturesb64[i//2]
         
         post['pictures'] = pictures
         
     
     print(post.keys())
+    
     
     try:
         r = requests.post(SERVER_URL+"/data_entry", data=json.dumps(post), headers=headers)
