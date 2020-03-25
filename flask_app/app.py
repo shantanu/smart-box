@@ -163,6 +163,8 @@ def get_data_request():
 
     return json.dumps(result)
 
+
+# all_frames parameter should only be specified if needed.
 @server.route("/get_pictures", methods=['GET'])
 def get_pictures_request():
     print("Get pictures request")
@@ -170,8 +172,16 @@ def get_pictures_request():
     start_time = datetime.strptime(request.args.get('start_time'), '%Y-%m-%d %H:%M:%S')
     end_time = datetime.strptime(request.args.get('end_time'), '%Y-%m-%d %H:%M:%S')
     
-    result = get_pictures(box, start_time, end_time)
-    print(result)
+    
+    all_frames = request.args.get('all_frames')
+    if all_frames == "True":
+        all_frames = True
+    else:
+        all_frames = False
+
+
+    result = get_pictures(box, start_time, end_time, all_frames)
+    #print(result)
 
     result = [(row[0],row[1].strftime('%Y-%m-%d %H:%M:%S'), row[2])
                 for row in result]
@@ -223,15 +233,24 @@ def get_data(box, start_time, end_time):
 # start_time and end_time are in python datetime types
 # returns a list of tuples (box_name, datetime (python format), base64 string picture)
 # note: you must parse the datetime object before printing!
-def get_pictures(box, start_time, end_time):
+# all_frames parameter is if you want all pics between those times
+# WARNING: with all=True, this will take a very long time.
+def get_pictures(box, start_time, end_time, all_frames=False):
     print("getting pictures", box, start_time, end_time)
     query = "SELECT * FROM Picture p WHERE p.box_name = '{}' and p.time BETWEEN '{}' AND '{}';".format(box, start_time, end_time)
-    result = db.engine.execute(text(query))
-    print(result)
+    result = list(db.engine.execute(text(query)))
+    #print(result)
+    
+    # keep approximately 100 frames in the final gif. 
+    # this helps the gif from not being massive!
+    if not all_frames:
+        mod = max(100, len(result)//100)
+    else:
+        mod = len(result)
 
     result = [(row[0],row[1], base64.b64encode(row[2]).decode('utf-8'))
-                for row in result]
-
+                for i, row in enumerate(result) if i % mod == 0]
+    print("returning  # frames = ", len(result))
     return result
 
 
@@ -383,13 +402,17 @@ dynamic_graphs_layout = [
         md=8),
         dbc.Col([
             dbc.Row([
-                html.H3("Selected Data - Top Graph Only!"),
+                html.H3("Selected Data"),
                 html.Pre(id='selected-data', style=styles['pre'], children="Please Select Data by dragging a box on the graph!"),
                 dcc.Input(id="label", type="text", placeholder='Activity Label'),
                 html.Br(),
                 dbc.Button("Submit Label", id="label-submit", color="info", className="mr-1"),
             ],
             style=styles['40vh']),
+            dbc.Row([
+                html.H3("Video Feed from Selected Data"),
+                html.Div([], id='selected-gif-container')
+            ]),
 
             html.H2("Here are the Labels in the database:"),
             dbc.ListGroup(
@@ -551,12 +574,33 @@ def update_graphs(n, box, start_time, end_time, channels):
 
 # Display the selected data on the right when you select on graph
 @visualizer.callback(
-    Output('selected-data', 'children'),
-    [Input('subplots-graph', 'selectedData')])
-def display_selected_data(selectedData):
+    [Output('selected-data', 'children'),
+     Output('selected-gif-container', 'children')],
+    [Input('subplots-graph', 'selectedData')],
+    [State("box_dropdown", "value")])
+def display_selected_data(selectedData, box):
     if not selectedData:
         raise PreventUpdate
-    return json.dumps(selectedData, indent=2)
+
+    rnge = selectedData['range']
+
+    # weird string processing step to work on any subplot
+    xx = [key for key in rnge.keys() if 'x' in key]
+    print("found ", xx)
+
+
+    start_time, end_time = rnge[xx[0]][0], rnge[xx[0]][1]
+    
+    gif_name = create_gif(box, start_time, end_time)
+
+    gif_player = Gif.GifPlayer(
+                        gif=gif_name,
+                        still=gif_name[:-3]+".png"
+                    )
+
+
+    return [json.dumps(selectedData, indent=2),
+            gif_player]
 
 
 
