@@ -29,7 +29,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
 from PIL import Image
-import io
+import glob
 
 
 server = Flask("SmartBox Companion App")
@@ -715,14 +715,9 @@ def populate_label_card(n, label):
 
 # return a segment:
 # (box, start_time, end_time)
-visited = False
 def get_next_AL_query():
-    global visited
     # TODO: clear out the gif folder.
-
-    if not visited:
-        visited = True
-        return ('Box0', '2020-03-22 21:11:00', '2020-03-22 21:15:00')
-        
-    else:
-        return None
+    files = glob.glob('/assets/gifs/*')
+    for f in files:
+        os.remove(f)
+    return ('Box0', '2020-03-22 21:11:00', '2020-03-22 21:15:00')
