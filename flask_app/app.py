@@ -37,7 +37,7 @@ server = Flask("SmartBox Companion App")
 # ================== ON START DATABASE CONNECTION ======================
 POSTGRES_URL = "localhost:5432"
 POSTGRES_USER = "postgres"
-POSTGRES_PW = "smartbox"
+POSTGRES_PW = "smart-box"
 POSTGRES_DB = "smartbox"
 
 DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
