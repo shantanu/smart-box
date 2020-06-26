@@ -32,12 +32,13 @@ from PIL import Image
 import glob
 
 
+
 server = Flask("SmartBox Companion App")
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "localhost:5432"
+POSTGRES_URL = "localhost:55432"
 POSTGRES_USER = "postgres"
-POSTGRES_PW = "smart-box"
+POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
 
 DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
@@ -617,6 +618,14 @@ labeler = dash.Dash(name="labeling", server=server,
 
 
 labeler_body = dbc.Container([
+    dbc.Row(children=[
+        dbc.Button(
+            "Run Active Learning", color="success", className="mr-1", id="run-AL-button"
+        ),
+        html.H1(
+            id="AL_RUN"
+        )
+    ]),
     dbc.Row(children=[], 
         id="label-card-container",
         style={
@@ -710,8 +719,17 @@ def populate_label_card(n, label):
     return [card]
 
 
+@labeler.callback([Output("AL_RUN", "children")],
+    [Input("run-AL-button", 'n_clicks')])
+def run_AL(n):
+    print("Button clicked")
+    df = get_recent_data()
+    print("Done retreiving data")
+    print(df.head)
 
+    return ("Done Updating", )
     
+
 
 # return a segment:
 # (box, start_time, end_time)
@@ -721,3 +739,35 @@ def get_next_AL_query():
     for f in files:
         os.remove(f)
     return ('Box0', '2020-03-22 21:11:00', '2020-03-22 21:15:00')
+
+
+
+
+# =======================ACTIVE LEARNING METHODS========================
+def get_recent_data():
+    with open("assets/state.json") as f:
+        last_pulled_json = json.load(f)
+        last_pulled_date = last_pulled_json['last_pulled_date']
+
+    print("Last pulled date: ", last_pulled_date)
+    # Get current time
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    print("Now: ", now)
+
+    # pull data from database between the last pulled date and now
+    data = get_data("Box0", last_pulled_date, now)
+
+    # update json file with current date
+    #last_pulled_json['last_pulled_date'] = now
+    #with open("/assets/state.json", "w") as jsonFile:
+    #    json.dump(last_pulled_json, jsonFile)
+
+    df = pd.DataFrame(data, columns=['box_name', 'channel_name', 'time', 'value', 'label'])
+    #print("\ngot " + str(len(df)) + " rows of data. processing data......")
+    df.sort_values(by='time', inplace=True)
+    df.reset_index(inplace=True)
+    df.drop('index', axis=1, inplace=True)
+    print(df.head())
+
+    return df
