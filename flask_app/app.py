@@ -31,6 +31,9 @@ import plotly.graph_objects as go
 from PIL import Image
 import glob
 
+import data_processing
+import dae_cpd
+
 
 
 server = Flask("SmartBox Companion App")
@@ -727,6 +730,8 @@ def run_AL(n):
     print("Done retreiving data")
     print(df.head)
 
+    index_segments = run_dae_cpd(df)
+
     return ("Done Updating", )
     
 
@@ -771,3 +776,15 @@ def get_recent_data():
     print(df.head())
 
     return df
+
+def run_dae_cpd(df):
+    data = data_processing.load_dataset(df)
+    values = data.values
+    X, y = values[:, :-1], values[:, -1]    # X : Samples, Y: Labels
+
+    model = dae_cpd.dae(X, y).fit()
+    result = model.fit_predict()  # change point indexes
+    print(result)
+
+
+
