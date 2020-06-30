@@ -39,7 +39,7 @@ import dae_cpd
 server = Flask("SmartBox Companion App")
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "localhost:55432"
+POSTGRES_URL = "localhost:5432"
 POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
@@ -786,5 +786,14 @@ def run_dae_cpd(df):
     result = model.fit_predict()  # change point indexes
     print(result)
 
+    times = sorted(df['time'].unique().values())
 
+    segments = [] # list of timestamp segments
+    segments.append((0, times[results[0]]))
+
+    for i in range(1, len(result)):
+         segments.append((times[results[i-1]], times[results[i]]))
+
+    print(segments[:3])
+    return segments
 

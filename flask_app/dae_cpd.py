@@ -302,7 +302,7 @@ def train(epoch, train_loader, train_loader_future, labels_train, optimizer, mod
 
     labels_pred = mmd_score
     
-    auc = valid_epoch(labels_pred, labels_train)
+    #auc = valid_epoch(labels_pred, labels_train)
     mmd_mean = mmd_score.mean().detach().numpy()
     #print('Train mmd:', mmd_mean)
     
@@ -311,7 +311,7 @@ def train(epoch, train_loader, train_loader_future, labels_train, optimizer, mod
         print("Train Epoch: {} Reconstruction Loss (P) is {:.4f} \t Reconstruction Loss (F) is {:.5f} \t Total Loss: {:0.5f} \t MMD: {:0.5f} \t AUC: {:.5f}".format(epoch +1, total_loss_p/len(train_loader.dataset), total_loss_f/len(train_loader.dataset), total_loss/len(train_loader.dataset), mmd_mean, auc))
     '''
     
-    return auc, labels_pred
+    return labels_pred
 
 
 #validate
@@ -343,7 +343,7 @@ def valid(epoch, valid_loader, valid_loader_future, labels_valid, optimizer, mod
     
     labels_pred = mmd_score
     
-    auc = valid_epoch(labels_pred, labels_valid)
+    #auc = valid_epoch(labels_pred, labels_valid)
     mmd_mean = mmd_score.mean().detach().numpy()
     
     '''
@@ -351,7 +351,7 @@ def valid(epoch, valid_loader, valid_loader_future, labels_valid, optimizer, mod
         print("Valid Epoch: {} Reconstruction Loss (P) is {:.4f} \t Reconstruction Loss (F) is {:.5f} \t  Total Loss: {:0.5f} \t MMD: {:0.5f} \t AUC: {:.5f}".format(epoch +1, total_loss_p/len(valid_loader.dataset), total_loss_f/len(valid_loader.dataset), total_loss/len(valid_loader.dataset), mmd_mean, auc))
     '''
    
-    return auc, labels_pred
+    return labels_pred, mmd_mean
  
 
 
@@ -376,11 +376,11 @@ def test(model, test_loader, test_loader_future, labels_test):
    
     labels_pred = mmd_score
     
-    auc = valid_epoch(labels_pred, labels_test)
+    #auc = valid_epoch(labels_pred, labels_test)
    
     #print('Test mmd:', mmd_mean)
     
-    return auc, labels_pred
+    return labels_pred
 
 
 ###################################################################################
@@ -463,7 +463,7 @@ class dae(object):
         
     # fit method
     def fit(self):
-        best_val_auc = -1
+        #best_val_auc = -1
         best_mmd = -1
         best_epoch = -1
         
@@ -471,14 +471,14 @@ class dae(object):
         for epoch in range(self.epochs):
     
             #training + validation
-            train_auc, train_score = train(epoch, self.train_loader, self.train_loader_future, self.labels_train, self.optimizer, self.model, self.criterion, self.beta)
-            val_auc, val_score = valid(epoch, self.valid_loader, self.valid_loader_future, self.labels_valid, self.optimizer, self.model, self.criterion, self.beta)
-    
-            if val_auc > best_val_auc:
-            #if mmd > best_mmd:
-                best_val_auc = val_auc
+            train_score = train(epoch, self.train_loader, self.train_loader_future, self.labels_train, self.optimizer, self.model, self.criterion, self.beta)
+            val_score, mmd = valid(epoch, self.valid_loader, self.valid_loader_future, self.labels_valid, self.optimizer, self.model, self.criterion, self.beta)
+
+            #if val_auc > best_val_auc:
+            if mmd > best_mmd:
+                #best_val_auc = val_auc
                 best_epoch = epoch
-                best_mmd = val_score
+                best_mmd = mmd
             
                 #saving model
                 self.fn = 'ae_state_dict_'+ 'best_epoch'+'.pth'
@@ -496,7 +496,7 @@ class dae(object):
     # predict method, for result on unseen tets data
     def predict(self):
         model = load_checkpoint(self.fn)
-        self.auc, self.mmd_score = test(model, self.test_loader, self.test_loader_future, self.labels_test)
+        self.mmd_score = test(model, self.test_loader, self.test_loader_future, self.labels_test)
         
         self.score, self.pred_pts = change_finder(self.mmd_score)
 
@@ -528,7 +528,7 @@ class dae(object):
         self.label_set = torch.utils.data.DataLoader(self.label, batch_size=self.batch_size, shuffle=False, drop_last = False)
         
         #print(len(self.label_set))
-        self.auc, self.mmd_score = test(model, self.data, self.future_data, self.label)
+        self.mmd_score = test(model, self.data, self.future_data, self.label)
         
         self.score, self.pred_pts = change_finder(self.mmd_score)
         
