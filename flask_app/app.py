@@ -36,7 +36,13 @@ import data_processing
 
 import tsfresh
 
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.model_selection import train_test_split
+from sklearn import preprocessing
+from sklearn.ensemble import RandomForestClassifier
 
+from modAL.models import ActiveLearner
+from modAL.uncertainty import uncertainty_sampling, margin_sampling, entropy_sampling
 
 server = Flask("SmartBox Companion App")
 
@@ -724,24 +730,6 @@ def populate_label_card(n, label):
     return [card]
 
 
-@labeler.callback([Output("AL_RUN", "children")],
-    [Input("run-AL-button", 'n_clicks')])
-def run_AL(n):
-    print("Button clicked")
-    df = get_recent_data()
-    print("Done retreiving data")
-    print(df.head)
-
-    time_segments = run_dae_cpd(df)
-
-    features = get_features(time_segments)
-
-    # maybe clustering
-
-    
-
-    return ("Done Updating", )
-    
 
 
 # return a segment:
@@ -754,6 +742,34 @@ def get_next_AL_query():
     return ('Box0', '2020-03-22 21:11:00', '2020-03-22 21:15:00')
 
 
+
+
+
+@labeler.callback([Output("AL_RUN", "children")],
+    [Input("run-AL-button", 'n_clicks')])
+def run_AL(n):
+    print("Button clicked")
+    # get all the data since the last time AL was run
+    df = get_recent_data()
+    print("Done retreiving data")
+    print(df.head)
+
+    # run DAE CPD to get the segments
+    time_segments = run_dae_cpd(df)
+
+    # pass each segment through a feature selector
+    # features is now a n x 13743 matrix, with each row
+    # representing a single segment
+    features = get_features(time_segments)
+
+    # get the AL classifier trained on the old dataset
+    learer = get_AL_learner()
+
+
+
+
+    return ("Done Updating", )
+    
 
 
 # =======================ACTIVE LEARNING METHODS========================
@@ -797,7 +813,7 @@ def run_dae_cpd(df):
     values = data.values
     X, y = values[:, :-1], values[:, -1]    # X : Samples, Y: Labels
 
-    ## COMMENT THIS OUT TO PREVENT A 20 MIN DELAY
+    ## COMMENTED THIS OUT TO PREVENT A 20 MIN DELAY
     #model = dae_cpd.dae(X, y).fit()
     #result = model.fit_predict()  # change point indexes
     result = [57, 211, 306, 359, 545, 691, 1176, 1319, 1412, 
@@ -840,6 +856,119 @@ def get_features(time_segments):
 
     print("Done computing the features: ", segment_features.shape)
     return segment_features
+
+# this learner will be trained on the old dataset
+# apologies for the long AF function
+# there is a ton of data cleaning here
+# that is required since we are using 
+# an old csv for training
+# which is in a different labeling format
+# please see the jupyter notebook
+# to see more detailed explanation
+
+def get_AL_learner():
+    print("Getting AL Learner")
+    # 1) Load the old dataset
+    df = pd.read_csv('./2020-06-13Box0PeopleCounting.csv')
+    df.sort_values(by='time', inplace=True)
+    df.drop('Unnamed: 0', axis=1, inplace=True)
+
+    # 2) get the segments by seeing where the labels change
+
+    start_indices = [df.iloc[0]['time']]
+
+    for i in range(1, len(df)):
+        if df.iloc[i]['label'] != df.iloc[i-1]['label']:
+            start_indices.append(df.iloc[i]['time'])
+
+    start_indices.append(df.iloc[-1]['time'])
+
+    print(start_indices)
+
+    segments = []
+    for i in range(1, len(start_indices)):
+        segments.append((start_indices[i-1], start_indices[i]))
+        
+    print(segments)
+
+    # 3) Relabel and normalize all labels to numerals (0, 1, 2, 3, 4, 5)
+    for segment in segments:
+        print(df.loc[df['time'] == segment[0], 'label'].iloc[0])
+        numPeopleinSegment = len(str(df.loc[df['time'] == segment[0], 'label'].iloc[0]).split(","))
+        print(numPeopleinSegment)
+        df.loc[((segment[0] <= df['time']) & (df['time'] < segment[1])), 'label'] = numPeopleinSegment
+
+    ### fix for last time stamp, annoying
+    df.loc[df['time'] == start_indices[-1], 'label'] = 4
+
+    print(df['label'].unique())
+
+
+    # 4) get features for each segment
+    ## this is very very similar to the get_features() 
+    ## method, but now we want to pull data from 
+    ## the old csv, not from the database
+    ## so we need to rewrite it
+
+    segment_features = np.empty((0, 13734), float)
+
+    for index, segment in enumerate(segments):
+        if index == len(segments) - 1:
+            # only last segment fix, must include the last index
+            # note the change in <= from < in second line
+            segment_df = df.loc[((segment[0] <= df['time']) & 
+                                (df['time'] <= segment[1]))]
+        else:
+            segment_df = df.loc[((segment[0] <= df['time']) & 
+                                (df['time'] < segment[1]))]
+            
+        features = tsfresh.extract_features(
+                        segment_df, 
+                        column_id="box_name",
+                        column_sort="time", 
+                        column_kind="channel_name", 
+                        column_value="value")
+        print(features)
+        print(len(features))
+        print(type(features))
+        print(features.to_numpy().shape)
+        segment_features = np.append(segment_features, 
+                            features.to_numpy(), axis=0)
+        print(segment_features)
+        
+    print("Done computing the features: ", segment_features.shape)
+
+    # 5) train classifier on these features
+
+    ## use the old csv file as training data for the
+    ## random forest classifier
+    ## then use the modAL library to conver it into
+    ## an active learner
+
+    labels = [5, 4, 5, 3, 5, 4, 2, 4]
+    X_training, y_training = np.nan_to_num(segment_features.astype('float32')), labels
+
+    rf = RandomForestClassifier(random_state=1)
+
+    #initialize learner
+    learner = ActiveLearner(estimator= rf,  ## nn works awful, rf is best
+                        query_strategy = margin_sampling,  ## margin sampling worked best
+                        X_training=X_training, y_training=y_training)
+
+
+    return learner
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         
