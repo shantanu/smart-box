@@ -763,7 +763,14 @@ def run_AL(n):
     features = get_features(time_segments)
 
     # get the AL classifier trained on the old dataset
-    learer = get_AL_learner()
+    learner = get_AL_learner()
+
+    print("Predicting Stuff!")
+    predictions = learner.predict(np.nan_to_num(features.as_type("float32")))
+
+    print(predictions)
+
+
 
 
 
@@ -869,7 +876,7 @@ def get_features(time_segments):
 def get_AL_learner():
     print("Getting AL Learner")
     # 1) Load the old dataset
-    df = pd.read_csv('./2020-06-13Box0PeopleCounting.csv')
+    df = pd.read_csv('./2020-05-30p1.csv')
     df.sort_values(by='time', inplace=True)
     df.drop('Unnamed: 0', axis=1, inplace=True)
 
