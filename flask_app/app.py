@@ -874,76 +874,85 @@ def get_features(time_segments):
 # to see more detailed explanation
 
 def get_AL_learner():
-    print("Getting AL Learner")
-    # 1) Load the old dataset
-    df = pd.read_csv('./2020-05-30p1.csv')
-    df.sort_values(by='time', inplace=True)
-    df.drop('Unnamed: 0', axis=1, inplace=True)
+    training_features_path = "./2020-05-30p1-segment-features.npy"
+    if os.path.exists(training_features_path):
+        segment_features = np.load(training_features_path)
+    else:
+        print("Getting AL Learner")
+        # 1) Load the old dataset
+        df = pd.read_csv('./2020-05-30p1.csv')
+        df.sort_values(by='time', inplace=True)
+        df.drop('Unnamed: 0', axis=1, inplace=True)
 
-    # 2) get the segments by seeing where the labels change
+        # 2) get the segments by seeing where the labels change
 
-    start_indices = [df.iloc[0]['time']]
+        start_indices = [df.iloc[0]['time']]
 
-    for i in range(1, len(df)):
-        if df.iloc[i]['label'] != df.iloc[i-1]['label']:
-            start_indices.append(df.iloc[i]['time'])
+        for i in range(1, len(df)):
+            if df.iloc[i]['label'] != df.iloc[i-1]['label']:
+                start_indices.append(df.iloc[i]['time'])
 
-    start_indices.append(df.iloc[-1]['time'])
+        start_indices.append(df.iloc[-1]['time'])
 
-    print(start_indices)
+        print(start_indices)
 
-    segments = []
-    for i in range(1, len(start_indices)):
-        segments.append((start_indices[i-1], start_indices[i]))
-        
-    print(segments)
-
-    # 3) Relabel and normalize all labels to numerals (0, 1, 2, 3, 4, 5)
-    for segment in segments:
-        print(df.loc[df['time'] == segment[0], 'label'].iloc[0])
-        numPeopleinSegment = len(str(df.loc[df['time'] == segment[0], 'label'].iloc[0]).split(","))
-        print(numPeopleinSegment)
-        df.loc[((segment[0] <= df['time']) & (df['time'] < segment[1])), 'label'] = numPeopleinSegment
-
-    ### fix for last time stamp, annoying
-    df.loc[df['time'] == start_indices[-1], 'label'] = 4
-
-    print(df['label'].unique())
-
-
-    # 4) get features for each segment
-    ## this is very very similar to the get_features() 
-    ## method, but now we want to pull data from 
-    ## the old csv, not from the database
-    ## so we need to rewrite it
-
-    segment_features = np.empty((0, 13734), float)
-
-    for index, segment in enumerate(segments):
-        if index == len(segments) - 1:
-            # only last segment fix, must include the last index
-            # note the change in <= from < in second line
-            segment_df = df.loc[((segment[0] <= df['time']) & 
-                                (df['time'] <= segment[1]))]
-        else:
-            segment_df = df.loc[((segment[0] <= df['time']) & 
-                                (df['time'] < segment[1]))]
+        segments = []
+        for i in range(1, len(start_indices)):
+            segments.append((start_indices[i-1], start_indices[i]))
             
-        features = tsfresh.extract_features(
-                        segment_df, 
-                        column_id="box_name",
-                        column_sort="time", 
-                        column_kind="channel_name", 
-                        column_value="value")
-        print(features)
-        print(len(features))
-        print(type(features))
-        print(features.to_numpy().shape)
-        segment_features = np.append(segment_features, 
-                            features.to_numpy(), axis=0)
-        print(segment_features)
-        
-    print("Done computing the features: ", segment_features.shape)
+        print(segments)
+
+        # 3) Relabel and normalize all labels to numerals (0, 1, 2, 3, 4, 5)
+        for segment in segments:
+            print(df.loc[df['time'] == segment[0], 'label'].iloc[0])
+            numPeopleinSegment = len(str(df.loc[df['time'] == segment[0], 'label'].iloc[0]).split(","))
+            print(numPeopleinSegment)
+            if str(df.loc[df['time'] == segment[0], 'label'].iloc[0] == "0":
+                numPeopleinSegment = 0
+
+            df.loc[((segment[0] <= df['time']) & (df['time'] < segment[1])), 'label'] = numPeopleinSegment
+
+        ### fix for last time stamp, annoying and hard coded. change this if training dataset changes.
+        df.loc[df['time'] == start_indices[-1], 'label'] = 1
+
+        print(df['label'].unique())
+
+
+        # 4) get features for each segment
+        ## this is very very similar to the get_features() 
+        ## method, but now we want to pull data from 
+        ## the old csv, not from the database
+        ## so we need to rewrite it
+
+        segment_features = np.empty((0, 13734), float)
+
+        for index, segment in enumerate(segments):
+            if index == len(segments) - 1:
+                # only last segment fix, must include the last index
+                # note the change in <= from < in second line
+                segment_df = df.loc[((segment[0] <= df['time']) & 
+                                    (df['time'] <= segment[1]))]
+            else:
+                segment_df = df.loc[((segment[0] <= df['time']) & 
+                                    (df['time'] < segment[1]))]
+                
+            features = tsfresh.extract_features(
+                            segment_df, 
+                            column_id="box_name",
+                            column_sort="time", 
+                            column_kind="channel_name", 
+                            column_value="value")
+            print(features)
+            print(len(features))
+            print(type(features))
+            print(features.to_numpy().shape)
+            segment_features = np.append(segment_features, 
+                                features.to_numpy(), axis=0)
+            print(segment_features)
+            
+        print("Done computing the features: ", segment_features.shape)
+        np.save(training_features_path, segment_features)
+
 
     # 5) train classifier on these features
 
@@ -952,7 +961,7 @@ def get_AL_learner():
     ## then use the modAL library to conver it into
     ## an active learner
 
-    labels = [5, 4, 5, 3, 5, 4, 2, 4]
+    labels = [5, 0, 4, 3, 1]
     X_training, y_training = np.nan_to_num(segment_features.astype('float32')), labels
 
     rf = RandomForestClassifier(random_state=1)
