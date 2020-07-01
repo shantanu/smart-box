@@ -32,14 +32,16 @@ from PIL import Image
 import glob
 
 import data_processing
-import dae_cpd
+#import dae_cpd
+
+import tsfresh
 
 
 
 server = Flask("SmartBox Companion App")
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "localhost:5432"
+POSTGRES_URL = "localhost:55432"
 POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
@@ -730,7 +732,13 @@ def run_AL(n):
     print("Done retreiving data")
     print(df.head)
 
-    index_segments = run_dae_cpd(df)
+    time_segments = run_dae_cpd(df)
+
+    features = get_features(time_segments)
+
+    # maybe clustering
+
+    
 
     return ("Done Updating", )
     
@@ -749,6 +757,7 @@ def get_next_AL_query():
 
 
 # =======================ACTIVE LEARNING METHODS========================
+
 def get_recent_data():
     with open("assets/state.json") as f:
         last_pulled_json = json.load(f)
@@ -760,20 +769,26 @@ def get_recent_data():
 
     print("Now: ", now)
 
-    # pull data from database between the last pulled date and now
-    data = get_data("Box0", last_pulled_date, now)
+    df = get_df_data("Box0", last_pulled_date, now)
+    
+    print(df.head())
 
     # update json file with current date
     #last_pulled_json['last_pulled_date'] = now
     #with open("/assets/state.json", "w") as jsonFile:
     #    json.dump(last_pulled_json, jsonFile)
 
+    return df
+
+def get_df_data(box, start_time, end_time):
+    # pull data from database between the last pulled date and now
+    data = get_data(box, start_time, end_time)
+
     df = pd.DataFrame(data, columns=['box_name', 'channel_name', 'time', 'value', 'label'])
     #print("\ngot " + str(len(df)) + " rows of data. processing data......")
     df.sort_values(by='time', inplace=True)
     df.reset_index(inplace=True)
     df.drop('index', axis=1, inplace=True)
-    print(df.head())
 
     return df
 
@@ -782,18 +797,53 @@ def run_dae_cpd(df):
     values = data.values
     X, y = values[:, :-1], values[:, -1]    # X : Samples, Y: Labels
 
-    model = dae_cpd.dae(X, y).fit()
-    result = model.fit_predict()  # change point indexes
+    ## COMMENT THIS OUT TO PREVENT A 20 MIN DELAY
+    #model = dae_cpd.dae(X, y).fit()
+    #result = model.fit_predict()  # change point indexes
+    result = [57, 211, 306, 359, 545, 691, 1176, 1319, 1412, 
+                1820, 2277, 2470, 2559, 2696, 2872, 3179, 
+                3270, 3357, 3564, 3645, 3772, 3976, 4148,
+                4287, 4349, 4408, 4472, 4557, 4758, 4856, 
+                4933]
     print(result)
 
-    times = sorted(df['time'].unique().values())
+    times = sorted(df['time'].unique())
+    print(len(times))
+    #print(times)
 
     segments = [] # list of timestamp segments
-    segments.append((0, times[results[0]]))
+    segments.append((times[0], times[result[0]]))
 
     for i in range(1, len(result)):
-         segments.append((times[results[i-1]], times[results[i]]))
+         segments.append((times[result[i-1]], times[result[i]]))
 
     print(segments[:3])
     return segments
+
+def get_features(time_segments):
+    segment_features = np.empty((0, 13734), float)
+    for start_time, end_time in time_segments:
+        segment_data = get_df_data("Box0", start_time, end_time)
+        features = tsfresh.extract_features(
+                    segment_data, 
+                    column_id="box_name",
+                    column_sort="time", 
+                    column_kind="channel_name", 
+                    column_value="value")
+        print(features)
+        print(len(features))
+        print(type(features))
+        print(features.to_numpy().shape)
+        segment_features = np.append(segment_features, 
+                            features.to_numpy(), axis=0)
+        print(segment_features)
+
+    print("Done computing the features: ", segment_features.shape)
+    return segment_features
+
+
+        
+
+
+        
 
