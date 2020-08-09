@@ -56,7 +56,7 @@ DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
     user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
 
 server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
-# silence the deprecation warning
+# silence the deprecation warning 
 server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 
 db = SQLAlchemy(server)
@@ -907,9 +907,8 @@ def get_AL_learner():
             print(df.loc[df['time'] == segment[0], 'label'].iloc[0])
             numPeopleinSegment = len(str(df.loc[df['time'] == segment[0], 'label'].iloc[0]).split(","))
             print(numPeopleinSegment)
-            if str(df.loc[df['time'] == segment[0], 'label'].iloc[0] == "0":
+            if str(df.loc[df['time'] == segment[0], 'label'].iloc[0]) == "0":
                 numPeopleinSegment = 0
-
             df.loc[((segment[0] <= df['time']) & (df['time'] < segment[1])), 'label'] = numPeopleinSegment
 
         ### fix for last time stamp, annoying and hard coded. change this if training dataset changes.
