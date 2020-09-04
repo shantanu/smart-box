@@ -47,7 +47,7 @@ from modAL.uncertainty import uncertainty_sampling, margin_sampling, entropy_sam
 server = Flask("SmartBox Companion App")
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "localhost:55432"
+POSTGRES_URL = "localhost:5432"
 POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
