@@ -47,7 +47,7 @@ from modAL.uncertainty import uncertainty_sampling, margin_sampling, entropy_sam
 server = Flask("SmartBox Companion App")
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "localhost:55432"
+POSTGRES_URL = "localhost:5432"
 POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
@@ -766,7 +766,7 @@ def run_AL(n):
     learner = get_AL_learner()
 
     print("Predicting Stuff!")
-    predictions = learner.predict(np.nan_to_num(features.as_type("float32")))
+    predictions = learner.predict(np.nan_to_num(features.astype("float32")))
 
     print(predictions)
 
