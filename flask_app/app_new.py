@@ -52,6 +52,7 @@ POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
 
+ENV == 'prod'
 if ENV == 'dev':
     app.debug = True
     DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
