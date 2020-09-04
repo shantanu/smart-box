@@ -673,7 +673,7 @@ def create_gif(box, start_time, end_time):
     outputGIF = io.BytesIO()
     full_gif = [black_frame] * 5 + frames
     gif_name = "./assets/gifs/{}.gif".format(time.time())
-    frames[0].save(gif_name[:-3] + ".png", format="PNG")
+    frames[0].save(gif_name[:-4] + ".png", format="PNG")
     with open(gif_name, "w+b") as g:
         black_frame.save(g, format='GIF', append_images=full_gif, save_all=True, duration=100, loop=0)
 

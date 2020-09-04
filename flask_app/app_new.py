@@ -52,10 +52,15 @@ POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
 
-DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
-    user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
+if ENV == 'dev':
+    app.debug = True
+    DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
+        user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
+    server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
+else:
+    app.debug = False
 
-server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
+    server.config['SQLALCHEMY_DATABASE_URI'] = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
 # silence the deprecation warning 
 server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 
@@ -614,8 +619,8 @@ def update_graphs(n, box, start_time, end_time, channels):
 def display_selected_data(selectedData, box):
     if not selectedData:
         raise PreventUpdate
-    print("selectedData------------------------------>",selectedData)
-    print("type(selectedData)-------------------------------->",type(selectedData))
+    # print("selectedData------------------------------>",selectedData)
+    # print("type(selectedData)-------------------------------->",type(selectedData))
     rnge = selectedData['range']
 
     # weird string processing step to work on any subplot
