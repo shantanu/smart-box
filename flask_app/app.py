@@ -64,7 +64,8 @@ class TestingConfig(BaseConfig):
     SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
 
 
-server = Flask("SmartBox Companion App",instance_relative_config=True)
+app = Flask("SmartBox Companion App",instance_relative_config=True)
+app = Flask(__name__)
 
 # ================== ON START DATABASE CONNECTION ======================
 POSTGRES_URL = "5432"
@@ -81,19 +82,19 @@ POSTGRES_DB = "smartbox"
 
 #SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@localhost:{}/{}".format(POSTGRES_USER, POSTGRES_PW, POSTGRES_URL, POSTGRES_DB)
 SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
-server.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
-server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 os.environ['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
-db = SQLAlchemy(server)
-if server.config is None:
-    server.config.from_object(BaseConfig)
+db = SQLAlchemy(app)
+if app.config is None:
+    app.config.from_object(BaseConfig)
 else:
-    server.config.from_object(BaseConfig)
-db.init_app(server)
-migrate = Migrate(server, db)
+    app.config.from_object(BaseConfig)
+db.init_app(app)
+migrate = Migrate(app, db)
 
 # ===================== HOMEPAGE REDIRECT =======================
-@server.route('/')
+@app.route('/')
 def hello_world():
     # TODO: simply reroute this to /visualizer
     return redirect('visualizer')
@@ -101,7 +102,7 @@ def hello_world():
 
 # =============== DATA ENTRY AND RETRIEVAL REST API ====================
 
-@server.route('/data_entry', methods=['POST'])
+@app.route('/data_entry', methods=['POST'])
 def enter_data():
     req_data = request.get_json()
     print("Got request")
@@ -135,7 +136,7 @@ def enter_data():
     return "Data Entered"
 
 # ONLY FOR TESTING
-@server.route('/picture_entry', methods=['POST'])
+@app.route('/picture_entry', methods=['POST'])
 def enter_picture():
     req_data = request.get_json()
     print("Got Request")
@@ -160,7 +161,7 @@ def enter_picture():
 
 
 
-@server.route('/check_box', methods=['POST'])
+@app.route('/check_box', methods=['POST'])
 def check_box():
     # box will first send boxname and all channels and associated 
     # sensors. This will ensure that it's all in the database
@@ -193,7 +194,7 @@ def check_box():
     return "Box Validated"
 
 
-@server.route("/get_data", methods=['GET'])
+@app.route("/get_data", methods=['GET'])
 def get_data_request():
     box = request.args.get('box_name')
     start_time = datetime.strptime(request.args.get('start_time'), '%Y-%m-%d %H:%M:%S')
@@ -208,7 +209,7 @@ def get_data_request():
 
 
 # all_frames parameter should only be specified if needed.
-@server.route("/get_pictures", methods=['GET'])
+@app.route("/get_pictures", methods=['GET'])
 def get_pictures_request():
     print("Get pictures request")
     box = request.args.get('box_name')
@@ -231,7 +232,7 @@ def get_pictures_request():
     
     return json.dumps(result)
 
-@server.route("/get_box_channels", methods=['GET'])
+@app.route("/get_box_channels", methods=['GET'])
 def get_box_channels_request():
     box = request.args.get('box_name')
     
@@ -240,7 +241,7 @@ def get_box_channels_request():
 
     return json.dumps(result)
 
-@server.route("/get_box_names", methods=['GET'])
+@app.route("/get_box_names", methods=['GET'])
 def get_box_names_request():
     result = get_box_names()
 
@@ -319,7 +320,7 @@ def get_box_names():
 
 
 # ========================= DATA VISUALIZATION DASH APP =============================
-visualizer = dash.Dash(name="visualizer", server=server, 
+visualizer = dash.Dash(name="visualizer", server=app, 
                         url_base_pathname='/visualizer/',
                         external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -613,7 +614,7 @@ def get_labels():
 
 # =========================== LABELING WEB COMPONENT=====================
 
-labeler = dash.Dash(name="labeling", server=server, 
+labeler = dash.Dash(name="labeling", server=app, 
                         url_base_pathname='/labeling/',
                         external_stylesheets=[dbc.themes.BOOTSTRAP])
 
