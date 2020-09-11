@@ -438,8 +438,8 @@ graph_select_form = dbc.Form([
                 id="box_dropdown",
                 options = [
                     {"label": box, "value": box} 
-                        for box in get_box_names()
-                ],
+                        #for box in get_box_names()
+                        for box in []                ],
             )
         ]
     ),
