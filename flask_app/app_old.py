@@ -52,16 +52,9 @@ POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
 
-ENV == 'prod'
-if ENV == 'dev':
-    app.debug = True
-    DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
-        user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
-    server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
-else:
-    app.debug = False
-
-    server.config['SQLALCHEMY_DATABASE_URI'] = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
+server.debug = False
+DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
+server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
 # silence the deprecation warning 
 server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 
@@ -330,7 +323,6 @@ class Picture(db.Model):
     def __repr__(self):
         return '<Picture: {}, {}, {}>'.format(self.box_name, 
             self.time, len(self.picture))
-
 
 
 # ========================= DATA VISUALIZATION DASH APP =============================
