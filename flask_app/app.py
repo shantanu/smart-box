@@ -381,7 +381,10 @@ navbar = dbc.NavbarSimple(
     brand_href='/visualizer/',
     sticky='top',
 )
-
+all_options = {
+                    'occupancies': ['0','1','2','3','4','5','6',],
+                    'activities': ['None','Running', 'Eating',]
+                }
 
 dynamic_graphs_layout = [
     dbc.Row([
@@ -407,7 +410,23 @@ dynamic_graphs_layout = [
         dbc.Col([
             dbc.Row([
                 html.H3("Selected Data"),
-                html.Pre(id='selected-data', style=styles['pre'], children="Please Select Data by dragging a box on the graph!"),
+                html.Pre(id='selected-data', style=styles['pre'], children="Please Select Data by dragging a box on the graph!"),  
+                
+
+                html.Div([
+                    dcc.Dropdown(
+                        id='oa_option',
+                        options=[{'label': k, 'value': k} for k in all_options.keys()],
+                        value='occupancies'
+                    ),
+                    html.Hr(),
+                    dcc.Dropdown(id='oa_according_option'),
+                    html.Hr(id='start_end_receive'),
+                ]),
+
+                dbc.Row(children=[], 
+                    id="label-card-container-1"),
+
                 dcc.Input(id="label", type="text", placeholder='Activity Label'),
                 html.Br(),
                 dbc.Button("Submit Label", id="label-submit", color="info", className="mr-1"),
@@ -440,7 +459,7 @@ graph_select_form = dbc.Form([
                 options = [
                     {"label": box, "value": box} 
                         #for box in get_box_names()
-                        for box in []                ],
+                        for box in get_box_names()],
             )
         ]
     ),
@@ -576,6 +595,7 @@ def update_graphs(n, box, start_time, end_time, channels):
     fig = graph_data(box, start_time, end_time, channels)
     return [fig]
 
+
 # Display the selected data on the right when you select on graph
 @visualizer.callback(
     [Output('selected-data', 'children'),
@@ -585,7 +605,8 @@ def update_graphs(n, box, start_time, end_time, channels):
 def display_selected_data(selectedData, box):
     if not selectedData:
         raise PreventUpdate
-
+    # print("selectedData------------------------------>",selectedData)
+    # print("type(selectedData)-------------------------------->",type(selectedData))
     rnge = selectedData['range']
 
     # weird string processing step to work on any subplot
@@ -595,7 +616,7 @@ def display_selected_data(selectedData, box):
 
     start_time, end_time = rnge[xx[0]][0], rnge[xx[0]][1]
     
-    gif_name = create_gif(box, start_time, end_time)
+    gif_name = create_gif(box,start_time,end_time)
 
     gif_player = Gif.GifPlayer(
                         gif=gif_name,
@@ -605,6 +626,54 @@ def display_selected_data(selectedData, box):
 
     return [json.dumps(selectedData, indent=2),
             gif_player]
+
+
+@visualizer.callback(
+    Output('oa_according_option', 'options'),
+    [Input('oa_option', 'value')])
+def set_data_type(selected_option):
+    return [{'label': i, 'value': i} for i in all_options[selected_option]]
+
+
+@visualizer.callback(
+    Output('oa_according_option', 'value'),
+    [Input('oa_according_option', 'options')])
+def set_data_type_accordingly(available_options):
+    return available_options[0]['value']
+
+ 
+
+@visualizer.callback(
+    Output("label-card-container-1", "children"),
+    [Input("label-submit", 'n_clicks'),
+    Input('subplots-graph', 'selectedData')],
+    [State("oa_according_option", 'value'),
+    State("box_dropdown", "value")])
+def populate_label(label_submit,selectedData,oa_according_val,box):
+    # button  becuase somebody clicked the refresh button
+    if not selectedData:
+        raise PreventUpdate
+    # print("selectedData",selectedData)
+    # print("type(selectedData)",type(selectedData))
+    rnge = selectedData['range']
+
+    # weird string processing step to work on any subplot
+    xx = [key for key in rnge.keys() if 'x' in key]
+    print("found ", xx)
+
+
+    start_time, end_time = rnge[xx[0]][0], rnge[xx[0]][1]
+
+    if oa_according_val == 'None' or oa_according_val == '0':
+        query = "UPDATE Data set label = '{}' where time between '{}' and '{}' and box_name='{}';".format(label_submit,start_time,end_time,box)
+        result = db.engine.execute(text(query))
+        # return [row for row in result]
+    else:
+        query = "UPDATE Data set label = '{}' where time between '{}' and '{}' and box_name='{}';".format(oa_according_val,start_time,end_time,box)
+        result = db.engine.execute(text(query))
+        # return [row for row in result]
+
+
 
 
 
