@@ -44,54 +44,49 @@ from sklearn.ensemble import RandomForestClassifier
 
 from modAL.models import ActiveLearner
 from modAL.uncertainty import uncertainty_sampling, margin_sampling, entropy_sampling
-#from .config import BaseConfig, TestingConfig
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-baseDB = os.path.join(basedir, 'app.db')
-devDB =  os.path.join(basedir, 'dev_app.db')
-testDB = os.path.join(basedir, 'testing_app.db')
 
-class BaseConfig(object):
-    DEBUG = False
-    TESTING = False
-    #SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
-    SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+# class BaseConfig(object):
+#     DEBUG = False
+#     TESTING = False
+#     #SECRET_KEY = os.environ.get('SECRET_KEY') or 'you-will-never-guess'
+#     SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
+#     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-class TestingConfig(BaseConfig):
-    DEBUG = False
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
+# class TestingConfig(BaseConfig):
+#     DEBUG = False
+#     TESTING = True
+#     SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
 
 
 app = Flask("SmartBox Companion App",instance_relative_config=True)
 app = Flask(__name__)
 
 # ================== ON START DATABASE CONNECTION ======================
-POSTGRES_URL = "5432"
+POSTGRES_URL = "localhost:5432"
 POSTGRES_USER = "postgres"
 POSTGRES_PW = "smartbox"
 POSTGRES_DB = "smartbox"
 
-# DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
-#     user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
+DB_URL = 'postgresql+psycopg2://{user}:{pw}@{url}/{db}'.format(
+    user=POSTGRES_USER,pw=POSTGRES_PW,url=POSTGRES_URL,db=POSTGRES_DB)
 
-# server.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
-# # silence the deprecation warning 
-# server.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
-
-#SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@localhost:{}/{}".format(POSTGRES_USER, POSTGRES_PW, POSTGRES_URL, POSTGRES_DB)
-SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
-app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-os.environ['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_DATABASE_URI'] = DB_URL
+# silence the deprecation warning 
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
 db = SQLAlchemy(app)
-if app.config is None:
-    app.config.from_object(BaseConfig)
-else:
-    app.config.from_object(BaseConfig)
-db.init_app(app)
-migrate = Migrate(app, db)
+#SQLALCHEMY_DATABASE_URI = "postgresql://{}:{}@localhost:{}/{}".format(POSTGRES_USER, POSTGRES_PW, POSTGRES_URL, POSTGRES_DB)
+# SQLALCHEMY_DATABASE_URI = 'postgres://zpsubtcgyhmhue:1558b0987b0ec9fa461f2072c176d2712e0498d7541cc965a5f0bb007766e18e@ec2-3-226-231-4.compute-1.amazonaws.com:5432/d88km9ic1ahkbe'
+# app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# os.environ['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+# db = SQLAlchemy(app)
+# if app.config is None:
+#     app.config.from_object(BaseConfig)
+# else:
+#     app.config.from_object(BaseConfig)
+# db.init_app(app)
+# migrate = Migrate(app, db)
 
 # ===================== HOMEPAGE REDIRECT =======================
 @app.route('/')
@@ -318,6 +313,45 @@ def get_box_names():
 
 
 
+# ==================== DATABASE MODELS ===============================
+
+class Box(db.Model):
+    box_name = db.Column(db.String(255), primary_key=True)
+
+    def __repr__(self):
+        return '<Box %r>' % self.box_name
+
+class Channel(db.Model):
+    channel_name = db.Column(db.String(255), primary_key=True)
+    sensor_name = db.Column(db.String(255))
+
+    def __repr__(self):
+        return '<Channel {channel_name}, Sensor {sensor_name}>'.format(
+            channel_name=self.channel_name, sensor_name=self.sensor_name)
+
+class Data(db.Model):
+    box_name = db.Column(db.String(255), db.ForeignKey('box.box_name'), 
+                        primary_key=True)
+    channel_name = db.Column(db.String(255), 
+        db.ForeignKey('channel.channel_name'), primary_key=True)
+    time = db.Column(db.DateTime, primary_key=True)
+    value = db.Column(db.Float)
+    label = db.Column(db.String(255))
+
+    def __repr__(self):
+        return '<Data: {}, {}, {}, {}, {}>'.format(self.box_name, 
+            self.channel_name, self.time, self.value, self.label)
+
+
+class Picture(db.Model):
+    box_name = db.Column(db.String(255), db.ForeignKey('box.box_name'),
+                        primary_key=True)
+    time = db.Column(db.DateTime, primary_key=True)
+    picture = db.Column(db.LargeBinary)
+
+    def __repr__(self):
+        return '<Picture: {}, {}, {}>'.format(self.box_name, 
+            self.time, len(self.picture))
 
 # ========================= DATA VISUALIZATION DASH APP =============================
 visualizer = dash.Dash(name="visualizer", server=app, 
@@ -458,7 +492,6 @@ graph_select_form = dbc.Form([
                 id="box_dropdown",
                 options = [
                     {"label": box, "value": box} 
-                        #for box in get_box_names()
                         for box in get_box_names()],
             )
         ]
